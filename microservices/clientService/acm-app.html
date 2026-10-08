@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>acm-app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --deep:#0b2220; --deep2:#123533; --mint:#d9f2e6; --paper:#f5f8f6; --ink:#12302f; --muted:#63797a; --line:#d3deda;
+  --idle:#4f6f6a; --run:#f2b632; --ok:#3cc088; --fail:#ff7a63; --skip:#3b5a56; --edge:#24433f;
+  --head:"Bricolage Grotesque","Trebuchet MS",sans-serif;
+  --body:"Source Sans 3","Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",Consolas,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font:400 16px/1.5 var(--body);color:var(--ink);background:var(--deep);display:flex;flex-direction:column;align-items:center;gap:22px;padding:24px}
+.app,.monitor{width:min(1100px,100%)}
+.app{display:grid;grid-template-columns:1.15fr 1fr;border-radius:22px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+
+/* ---------- stage: topology + steps ---------- */
+.stage{background:radial-gradient(120% 90% at 0% 0%,var(--deep2) 0%,var(--deep) 70%);color:var(--mint);padding:34px 32px}
+.brand{font:800 26px/1 var(--head);letter-spacing:-.02em;margin:0}
+.tag{margin:8px 0 14px;color:#8fb3aa;max-width:44ch}
+#topo{width:100%;height:auto;display:block;margin-bottom:6px}
+.edge{stroke:var(--edge);stroke-width:2;transition:stroke .2s}
+.node rect{fill:rgba(255,255,255,.04);stroke:var(--edge);stroke-width:2;transition:stroke .25s,fill .25s}
+.node text{fill:#d9f2e6;font:700 14px var(--head);text-anchor:middle}
+.node small{display:none}
+.legend{display:flex;gap:16px;font-size:13px;color:#8fb3aa;margin:0 0 20px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+.flow{list-style:none;margin:0;padding:0}
+.step{display:grid;grid-template-columns:46px 1fr auto;gap:14px;position:relative;padding-bottom:16px;align-items:start}
+.step:last-child{padding-bottom:0}
+.step::before{content:"";position:absolute;left:22px;top:46px;bottom:-2px;width:2px;background:var(--edge)}
+.step:last-child::before{display:none}
+.step[data-state=ok]::before{background:var(--ok)}
+.step[data-state=run]::before{background:linear-gradient(var(--run),var(--edge))}
+.step[data-state=skip]::before{opacity:.35}
+.icon{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;border:2px solid var(--idle);color:var(--idle);background:rgba(255,255,255,.02);transition:all .3s}
+.icon svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.step[data-state=run] .icon{border-color:var(--run);color:var(--run);animation:pulse 1.2s ease-in-out infinite}
+.step[data-state=ok] .icon{border-color:var(--ok);background:var(--ok);color:var(--deep)}
+.step[data-state=fail] .icon{border-color:var(--fail);background:var(--fail);color:var(--deep)}
+.step[data-state=skip] .icon{border-style:dashed;border-color:var(--skip);color:var(--skip)}
+@keyframes pulse{50%{box-shadow:0 0 0 9px rgba(242,182,50,.16)}}
+.txt{min-width:0}
+.txt h3{font:700 16px/1.25 var(--head);margin:0;color:#eefaf4}
+.txt .req{font:400 12px var(--mono);color:#6f948c;margin:1px 0 0}
+.txt .res{margin:3px 0 0;font-size:14.5px;color:#b6d3ca;overflow-wrap:anywhere}
+.step[data-state=fail] .res{color:var(--fail)}
+.step[data-state=ok] .res{color:#c9efdc}
+.step[data-state=skip] h3,.step[data-state=skip] .res{color:#587570}
+.ms{font:400 12px var(--mono);color:#6f948c;padding-top:3px;white-space:nowrap}
+
+/* ---------- login card ---------- */
+.card{background:var(--paper);padding:44px 40px;display:flex;flex-direction:column;justify-content:center;min-height:620px}
+.card h2{font:800 30px/1.1 var(--head);letter-spacing:-.02em;margin:0 0 6px}
+.card .sub{color:var(--muted);margin:0 0 24px}
+form{display:grid;gap:16px}
+.field{display:grid;gap:6px}
+.field label{font-weight:600;font-size:14px}
+.field .hint{font-size:13px;color:var(--muted)}
+.ctl{position:relative}
+input[type=text],input[type=password]{width:100%;font:400 15px var(--mono);padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);transition:border-color .2s,box-shadow .2s}
+input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(--deep2);box-shadow:0 0 0 4px rgba(18,53,51,.12)}
+input[aria-invalid=true]{border-color:#c2412b}
+.eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);padding:8px;border-radius:8px;cursor:pointer;font:600 13px var(--body)}
+.eye:hover{color:var(--ink)}
+.row{display:grid;gap:8px;font-size:14px}
+.row label{display:flex;gap:8px;align-items:center;cursor:pointer}
+.row input{accent-color:var(--deep2);width:16px;height:16px}
+.btn{font:700 16px var(--head);padding:14px 18px;border:0;border-radius:12px;background:var(--deep2);color:#fff;cursor:pointer;transition:transform .15s,background .2s}
+.btn:hover:not(:disabled){background:var(--deep);transform:translateY(-1px)}
+.btn:disabled{opacity:.6;cursor:progress}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--run);outline-offset:2px}
+.err{color:#b23a25;font-size:14px;min-height:20px;margin:0}
+.done{display:none;gap:14px}
+.done.show{display:grid}
+.who{display:flex;gap:14px;align-items:center;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:16px}
+.avatar{width:52px;height:52px;border-radius:50%;background:var(--ok);color:var(--deep);display:grid;place-items:center;font:800 22px var(--head);flex:none}
+.who b{font:700 19px var(--head);display:block}
+.who span{color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stats div{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
+.stats small{display:block;color:var(--muted);font-size:12.5px}
+.stats strong{font:700 16px var(--head);overflow-wrap:anywhere}
+
+/* ---------- monitor ---------- */
+.monitor{background:#0f2b29;border:1px solid #1d413d;border-radius:18px;padding:20px 22px;color:var(--mint)}
+.mhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.mhead h2{font:700 19px var(--head);margin:0}
+.mhead p{margin:2px 0 0;color:#8fb3aa;font-size:14px;max-width:70ch}
+.mhead button{font:600 13px var(--body);background:none;border:1px solid #2b514c;color:#b6d3ca;border-radius:8px;padding:6px 10px;cursor:pointer;margin-left:6px}
+.cols{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.col{background:rgba(0,0,0,.22);border:1px solid #1d413d;border-radius:12px;min-width:0}
+.col header{display:flex;justify-content:space-between;align-items:center;padding:9px 11px;border-bottom:1px solid #1d413d;font:700 14px var(--head)}
+.chip{font:400 11.5px var(--mono);padding:2px 8px;border-radius:99px;background:#1b3a37;color:#8fb3aa}
+.chip.live{background:rgba(60,192,136,.18);color:var(--ok)}
+.chip.bad{background:rgba(255,122,99,.16);color:var(--fail)}
+.col ul{list-style:none;margin:0;padding:6px 11px 10px;height:210px;overflow:auto;font:400 12px/1.5 var(--mono)}
+.col li{padding:3px 0;border-top:1px solid #173532;overflow-wrap:anywhere;color:#b6d3ca}
+.col li:first-child{border-top:0}
+.col li.e{color:var(--fail)}
+.col time{color:#5f8a82;margin-right:6px}
+.empty{color:#5f8a82;font:400 13px var(--body);padding:8px 0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+@media (max-width:900px){.cols{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:820px){.app{grid-template-columns:1fr}.stage{padding:26px 22px}.card{padding:30px 22px;min-height:0;order:-1}}
+@media (max-width:520px){.cols{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.step[data-state=run] .icon{animation:none}.btn{transition:none}}
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="stage" aria-label="Live network flow">
+    <h1 class="brand">acm-app</h1>
+    <p class="tag">Watch each request hop between the four services as it happens.</p>
+    <svg id="topo" viewBox="0 0 560 280" role="img" aria-label="Network map of acm-app, acm-dns, acm-server and acm-db"></svg>
+    <p class="legend">
+      <span><i style="background:#f2b632"></i>Request</span>
+      <span><i style="background:#3cc088"></i>Response</span>
+      <span><i style="background:#ff7a63"></i>Error</span>
+    </p>
+    <ol class="flow" id="flow" aria-live="polite"></ol>
+  </section>
+
+  <section class="card">
+    <div id="formView">
+      <h2>Sign in</h2>
+      <p class="sub">New here? We'll create your account automatically.</p>
+      <form id="f" novalidate>
+        <div class="field">
+          <label for="dns">DNS address</label>
+          <input type="text" id="dns" placeholder="host:port of acm-dns" autocomplete="off" spellcheck="false" inputmode="url">
+          <span class="hint">Every other address is discovered through acm-dns.</span>
+        </div>
+        <div class="field">
+          <label for="user">Username</label>
+          <input type="text" id="user" autocomplete="username" spellcheck="false" autocapitalize="none">
+        </div>
+        <div class="field">
+          <label for="pass">Password</label>
+          <div class="ctl">
+            <input type="password" id="pass" autocomplete="current-password" style="padding-right:64px">
+            <button type="button" class="eye" id="eye" aria-pressed="false">Show</button>
+          </div>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="remember" checked> Remember DNS address</label>
+          <label><input type="checkbox" id="monitorOn" checked> Stream background events from the services</label>
+          <label><input type="checkbox" id="demo"> Demo mode (no services needed)</label>
+        </div>
+        <p class="err" id="err" role="alert"></p>
+        <button class="btn" id="go" type="submit">Connect</button>
+      </form>
+    </div>
+
+    <div class="done" id="doneView">
+      <h2>You're connected</h2>
+      <div class="who">
+        <div class="avatar" id="avatar">?</div>
+        <div><b id="whoName"></b><span id="whoServer"></span></div>
+      </div>
+      <div class="stats">
+        <div><small>Server</small><strong id="stIp">–</strong></div>
+        <div><small>Account</small><strong id="stAcc">–</strong></div>
+        <div><small>Total time</small><strong id="stMs">–</strong></div>
+      </div>
+      <button class="btn ghost" id="again" type="button">Start over</button>
+    </div>
+  </section>
+</main>
+
+<section class="monitor" aria-label="Service monitor">
+  <div class="mhead">
+    <div>
+      <h2>Service monitor</h2>
+      <p>What this page sent and received, plus background events each service reports on its own <code>/events</code> stream.</p>
+    </div>
+    <div><button id="copyAll" type="button">Copy all events</button><button id="clearAll" type="button">Clear</button></div>
+  </div>
+  <div class="cols" id="cols"></div>
+</section>
+
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var NS='http://www.w3.org/2000/svg';
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- network map ---------- */
+  var NODES={app:[75,140],dns:[280,45],server:[280,235],db:[485,235]};
+  var LABEL={app:'acm-app',dns:'acm-dns',server:'acm-server',db:'acm-db'};
+  var EDGES=[['app','dns'],['app','server'],['server','dns'],['server','db']];
+  var COL={req:'#f2b632',res:'#3cc088',err:'#ff7a63'};
+  (function(){
+    var h='';
+    EDGES.forEach(function(e){var a=NODES[e[0]],b=NODES[e[1]];
+      h+='<line class="edge" data-e="'+e.join('-')+'" x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'"/>';});
+    Object.keys(NODES).forEach(function(k){var c=NODES[k];
+      h+='<g class="node" data-n="'+k+'"><rect x="'+(c[0]-56)+'" y="'+(c[1]-27)+'" width="112" height="54" rx="14"/><text x="'+c[0]+'" y="'+(c[1]+5)+'">'+LABEL[k]+'</text></g>';});
+    h+='<g id="packets"></g>';
+    $('topo').innerHTML=h;
+  })();
+  function paint(el,prop,color,ms){
+    el.style[prop]=color; setTimeout(function(){el.style[prop]='';},ms);
+  }
+  function hop(from,to,kind){
+    var a=NODES[from],b=NODES[to]; if(!a||!b) return;
+    var color=COL[kind]||COL.req;
+    var node=document.querySelector('.node[data-n="'+to+'"] rect');
+    if(node) paint(node,'stroke',color,700);
+    var edge=document.querySelector('.edge[data-e="'+from+'-'+to+'"],.edge[data-e="'+to+'-'+from+'"]');
+    if(edge) paint(edge,'stroke',color,700);
+    if(reduce) return;
+    var c=document.createElementNS(NS,'circle'); c.setAttribute('r','6'); c.setAttribute('fill',color);
+    $('packets').appendChild(c);
+    var t0=performance.now(), D=600;
+    (function step(t){
+      var p=Math.min(1,Math.max(0,(t-t0)/D));
+      c.setAttribute('cx',a[0]+(b[0]-a[0])*p); c.setAttribute('cy',a[1]+(b[1]-a[1])*p);
+      if(p<1) requestAnimationFrame(step); else c.remove();
+    })(t0);
+  }
+
+  /* ---------- steps ---------- */
+  var ICONS={
+    input:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4M7 10h4"/></svg>',
+    lookup:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M4.5 11h13M11 4c2.5 2.2 2.5 11.8 0 14M11 4c-2.5 2.2-2.5 11.8 0 14"/></svg>',
+    login:'<svg viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v4M21 12v3"/></svg>',
+    register:'<svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M3 20c0-4 3-6 7-6M18 14v6M15 17h6"/></svg>',
+    retry:'<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/><circle cx="12" cy="12" r="2"/></svg>',
+    whoami:'<svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>'
+  };
+  var STEPS=[
+    {id:'input',title:'Read DNS address',req:'your input'},
+    {id:'lookup',title:'Find the server',req:'GET /lookup?domain=acm-server'},
+    {id:'login',title:'Sign in',req:'POST /login'},
+    {id:'register',title:'Create account',req:'POST /register'},
+    {id:'retry',title:'Sign in again',req:'POST /login'},
+    {id:'whoami',title:'Verify session',req:'GET /whoami'}
+  ];
+  var flow=$('flow'), go=$('go'), errEl=$('err'), nodes={}, started={};
+  STEPS.forEach(function(s){
+    var li=document.createElement('li'); li.className='step'; li.dataset.state='idle';
+    li.innerHTML='<div class="icon" aria-hidden="true">'+ICONS[s.id]+'</div>'+
+      '<div class="txt"><h3>'+s.title+'</h3><p class="req">'+s.req+'</p><p class="res">Waiting</p><span class="sr st">idle</span></div><div class="ms"></div>';
+    flow.appendChild(li); nodes[s.id]=li;
+  });
+  function set(id,state,msg){
+    var n=nodes[id]; n.dataset.state=state;
+    n.querySelector('.res').textContent=msg||({idle:'Waiting',run:'In progress…',skip:'Not needed'}[state]||'');
+    n.querySelector('.st').textContent=state;
+    if(state==='run') started[id]=performance.now();
+    if((state==='ok'||state==='fail')&&started[id]) n.querySelector('.ms').textContent=Math.round(performance.now()-started[id])+' ms';
+    if(state==='idle'||state==='skip') n.querySelector('.ms').textContent='';
+  }
+
+  /* ---------- monitor columns ---------- */
+  var SVCS=['app','dns','server','db'], allEvents=[];
+  (function(){
+    var h='';
+    SVCS.forEach(function(s){
+      h+='<div class="col"><header>'+LABEL[s]+'<span class="chip" id="st-'+s+'">idle</span></header><ul id="ev-'+s+'" aria-label="'+LABEL[s]+' events"></ul></div>';
+    });
+    $('cols').innerHTML=h;
+  })();
+  function status(s,text,cls){var c=$('st-'+s);c.textContent=text;c.className='chip'+(cls?' '+cls:'');}
+  function evt(svc,msg,bad){
+    var ul=$('ev-'+svc); if(!ul) return;
+    var li=document.createElement('li'); if(bad) li.className='e';
+    var t=document.createElement('time'), now=new Date();
+    t.textContent=now.toLocaleTimeString([], {hour12:false});
+    li.appendChild(t); li.appendChild(document.createTextNode(msg));
+    ul.prepend(li); while(ul.children.length>80) ul.lastChild.remove();
+    allEvents.push(t.textContent+' ['+LABEL[svc]+'] '+msg);
+  }
+  function clearMonitor(){
+    SVCS.forEach(function(s){$('ev-'+s).innerHTML='';status(s,s==='app'?'local':'idle',s==='app'?'live':'');});
+    allEvents=[];
+  }
+  $('clearAll').addEventListener('click',clearMonitor);
+  $('copyAll').addEventListener('click',function(){
+    var b=this, txt=allEvents.join('\n');
+    (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(function(){b.textContent='Copied';},function(){b.textContent='Copy failed';});
+    setTimeout(function(){b.textContent='Copy all events';},1600);
+  });
+  clearMonitor();
+
+  /* background events from the services (server-sent events) */
+  var feeds=[], timers=[];
+  function norm(x){return String(x||'').replace(/^acm-/,'').toLowerCase();}
+  function bg(svc,msg,from,to,kind){evt(svc,msg,kind==='err'); if(from&&to) hop(from,to,kind||'req');}
+  function handleBg(svc,raw){
+    var d=null; try{d=JSON.parse(raw);}catch(e){}
+    if(d&&typeof d==='object'){
+      var msg=d.message||d.msg||d.event||d.type||raw;
+      var from=norm(d.source||d.from||svc), to=norm(d.target||d.to);
+      var bad=d.error||/error|fail/i.test(String(d.level||d.status||''));
+      bg(svc,typeof msg==='string'?msg:JSON.stringify(msg),from,to,bad?'err':'req');
+    }else bg(svc,String(raw));
+  }
+  function connectFeed(svc,base){
+    if(!$('monitorOn').checked||$('demo').checked) return;
+    var es, opened=false; status(svc,'connecting');
+    try{es=new EventSource(base+'/events',{withCredentials:true});}catch(e){status(svc,'no feed','bad');return;}
+    feeds.push(es);
+    es.onopen=function(){opened=true;status(svc,'live','live');};
+    es.onmessage=function(m){handleBg(svc,m.data);};
+    es.onerror=function(){es.close();status(svc,opened?'ended':'no feed','bad');};
+  }
+  function closeFeeds(){feeds.forEach(function(f){f.close();});feeds=[];timers.forEach(clearTimeout);timers=[];}
+  function later(ms,fn){timers.push(setTimeout(fn,ms));}
+
+  /* ---------- helpers ---------- */
+  function withScheme(h){h=h.trim().replace(/\/+$/,'');return /^https?:\/\//i.test(h)?h:'http://'+h;}
+  function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
+  function msgOf(r){return (r.json&&(r.json.message||r.json.error||r.json.detail))||r.text||('HTTP '+r.status);}
+  function friendly(r,what){
+    if(r.status===429) return what+' blocked: too many attempts. Wait a moment, then try again.';
+    if(r.status>=500) return what+' failed: the service had an internal error ('+r.status+'). Check its event stream.';
+    return what+' failed ('+r.status+'): '+msgOf(r);
+  }
+  function userMissing(r){return !r.ok&&(r.status===404||/not\s*(exist|found|registered)|unknown user|no such/i.test(msgOf(r)));}
+  function pickAddress(r){
+    var j=r.json,a=null;
+    if(j&&typeof j==='object') a=j.ip||j.address||j.addr||j.server||j.host||j.url||(j.data&&(j.data.ip||j.data.address));
+    else if(typeof j==='string') a=j; else a=r.text.trim();
+    return a?String(a):null;
+  }
+
+  /* ---------- demo backend ---------- */
+  var demoUsers={}, demoDbAddr='demo-db:5432';
+  function demoCall(method,url,body){
+    var path=url.replace(/^https?:\/\/[^/]+/,'');
+    if(path.indexOf('/lookup')===0){
+      later(150,function(){bg('dns','lookup '+decodeURIComponent(path.split('=')[1]||'')+' served');});
+    }else if(path==='/login'){
+      var known=!!demoUsers[body.username];
+      later(120,function(){bg('server','resolving acm-db through acm-dns','server','dns');});
+      later(420,function(){bg('dns','lookup acm-db served','dns','server','res');});
+      later(640,function(){bg('server','user lookup for "'+body.username+'"','server','db');});
+      later(860,function(){bg('db',known?'1 row, password hash fetched':'0 rows','db','server','res');});
+    }else if(path==='/register'){
+      later(120,function(){bg('server','hashing password before storage');});
+      later(360,function(){bg('server','insert new user','server','db');});
+      later(600,function(){bg('db','user row inserted','db','server','res');});
+    }else if(path==='/whoami'){
+      later(120,function(){bg('server','checking session_id','server','db');});
+      later(380,function(){bg('db','session is valid','db','server','res');});
+    }
+    return wait(500+Math.random()*300).then(function(){
+      var r;
+      if(path.indexOf('/lookup')===0) r={status:200,json:{domain:'acm-server',ip:'demo-server:8080'}};
+      else if(path==='/login'){
+        if(!demoUsers[body.username]) r={status:404,json:{error:'user does not exist'}};
+        else if(demoUsers[body.username]!==body.password) r={status:401,json:{error:'wrong password'}};
+        else{r={status:200,json:{ok:true}};demoUsers.__session=body.username;}
+      }else if(path==='/register'){demoUsers[body.username]=body.password;r={status:201,json:{ok:true}};}
+      else if(path==='/whoami') r=demoUsers.__session?{status:200,json:{username:demoUsers.__session}}:{status:401,json:{error:'no session'}};
+      else r={status:404,json:{error:'not found'}};
+      r.ok=r.status>=200&&r.status<300; r.text=JSON.stringify(r.json); return r;
+    });
+  }
+
+  /* ---------- real backend ---------- */
+  function realCall(method,url,body){
+    var ctrl=new AbortController(), timer=setTimeout(function(){ctrl.abort();},10000);
+    var o={method:method,credentials:'include',signal:ctrl.signal,headers:{}};
+    if(body){o.headers['Content-Type']='application/json';o.body=JSON.stringify(body);}
+    return fetch(url,o).then(function(r){
+      return r.text().then(function(t){var j=null;try{j=JSON.parse(t);}catch(e){}return {ok:r.ok,status:r.status,text:t,json:j};});
+    }).catch(function(e){
+      throw new Error(e.name==='AbortError'?'No reply within 10 seconds.':'Could not reach the service. Check the address, that it is running, and that CORS allows this page.');
+    }).finally(function(){clearTimeout(timer);});
+  }
+
+  async function call(method,url,body,svc){
+    var path=url.replace(/^https?:\/\/[^/]+/,'');
+    evt('app','→ '+LABEL[svc]+' '+method+' '+path+(body?' (credentials sent)':''));
+    hop('app',svc,'req');
+    var r;
+    try{r=await ($('demo').checked?demoCall:realCall)(method,url,body);}
+    catch(e){hop(svc,'app','err');evt('app','✖ '+e.message,true);throw e;}
+    hop(svc,'app',r.ok?'res':'err');
+    evt('app','← '+r.status+' '+(r.text.length>70?r.text.slice(0,70)+'…':r.text),!r.ok);
+    return r;
+  }
+
+  /* ---------- remember DNS, show/hide password ---------- */
+  try{var saved=localStorage.getItem('acm-dns'); if(saved) $('dns').value=saved;}catch(e){}
+  $('eye').addEventListener('click',function(){
+    var p=$('pass'), show=p.type==='password';
+    p.type=show?'text':'password'; this.textContent=show?'Hide':'Show'; this.setAttribute('aria-pressed',show);
+  });
+
+  /* ---------- the flow ---------- */
+  $('f').addEventListener('submit',function(ev){
+    ev.preventDefault();
+    var dns=$('dns').value.trim(), user=$('user').value.trim(), pass=$('pass').value;
+    ['dns','user','pass'].forEach(function(i){$(i).removeAttribute('aria-invalid');});
+    var miss=!dns?'dns':!user?'user':!pass?'pass':null;
+    if(miss){$(miss).setAttribute('aria-invalid','true');$(miss).focus();
+      errEl.textContent={dns:'Enter the DNS address.',user:'Enter your username.',pass:'Enter your password.'}[miss];return;}
+    try{if($('remember').checked) localStorage.setItem('acm-dns',dns); else localStorage.removeItem('acm-dns');}catch(e){}
+
+    closeFeeds(); clearMonitor(); STEPS.forEach(function(s){set(s.id,'idle');}); errEl.textContent='';
+    if($('demo').checked){['dns','server','db'].forEach(function(s){status(s,'demo','live');});}
+    go.disabled=true; go.textContent='Connecting…';
+    var t0=performance.now(), creds={username:user,password:pass}, current='input', server='', account='Existing';
+
+    (async function(){
+      try{
+        set('input','ok',dns);
+        current='lookup'; set('lookup','run');
+        var dnsBase=withScheme(dns);
+        var r=await call('GET',dnsBase+'/lookup?domain=acm-server',null,'dns');
+        if(!r.ok) throw new Error(friendly(r,'Server lookup'));
+        var addr=pickAddress(r); if(!addr) throw new Error('The DNS reply did not include a server address.');
+        server=withScheme(addr); set('lookup','ok','acm-server is at '+addr);
+
+        /* background monitoring, never blocks the sign-in */
+        connectFeed('dns',dnsBase); connectFeed('server',server);
+        if($('monitorOn').checked&&!$('demo').checked){
+          realCall('GET',dnsBase+'/lookup?domain=acm-db').then(function(d){
+            if(d.ok&&pickAddress(d)){evt('app','acm-db resolved for monitoring');connectFeed('db',withScheme(pickAddress(d)));}
+            else status('db','no feed','bad');
+          }).catch(function(){status('db','no feed','bad');});
+        }
+
+        current='login'; set('login','run');
+        r=await call('POST',server+'/login',creds,'server');
+        if(r.ok){
+          set('login','ok','Signed in'); set('register','skip'); set('retry','skip');
+        }else if(userMissing(r)){
+          set('login','fail','No account for "'+user+'" yet');
+          current='register'; set('register','run');
+          var rr=await call('POST',server+'/register',creds,'server');
+          if(rr.status===409){set('register','ok','Account already exists, continuing');}
+          else if(!rr.ok) throw new Error(friendly(rr,'Account creation'));
+          else {set('register','ok','Account created'); account='New';}
+          current='retry'; set('retry','run');
+          var r2=await call('POST',server+'/login',creds,'server');
+          if(!r2.ok) throw new Error(r2.status===401?'Wrong username or password.':friendly(r2,'Sign-in'));
+          set('retry','ok','Signed in');
+        }else{
+          set('register','skip'); set('retry','skip');
+          throw new Error(r.status===401?'Wrong username or password.':friendly(r,'Sign-in'));
+        }
+
+        current='whoami'; set('whoami','run');
+        evt('app',/(?:^|;\s*)session_id=/.test(document.cookie)?'session_id cookie captured':'session_id cookie kept by the browser (HttpOnly)');
+        var w=await call('GET',server+'/whoami',null,'server');
+        if(!w.ok) throw new Error(w.status===401?'The server did not accept the session cookie. Check CORS credentials and SameSite settings.':friendly(w,'Session check'));
+        var who=(w.json&&(w.json.username||w.json.user||w.json.name))||w.text.trim()||user;
+        set('whoami','ok','Active session for '+who);
+
+        var total=Math.round(performance.now()-t0);
+        $('whoName').textContent=who; $('whoServer').textContent=addr;
+        $('avatar').textContent=String(who).charAt(0).toUpperCase();
+        $('stIp').textContent=addr.replace(/^https?:\/\//,'').split(':')[0];
+        $('stAcc').textContent=account; $('stMs').textContent=total+' ms';
+        $('formView').style.display='none'; $('doneView').classList.add('show');
+        evt('app','✔ flow complete in '+total+' ms');
+      }catch(e){
+        set(current,'fail',e.message); errEl.textContent=e.message;
+      }finally{go.disabled=false;go.textContent='Connect';}
+    })();
+  });
+
+  $('again').addEventListener('click',function(){
+    $('doneView').classList.remove('show'); $('formView').style.display='';
+    closeFeeds(); clearMonitor(); STEPS.forEach(function(s){set(s.id,'idle');}); errEl.textContent='';
+    $('pass').value=''; $('pass').focus();
+  });
+})();
+</script>
+</body>
+</html>
